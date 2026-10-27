@@ -4,16 +4,11 @@ This document tracks mistakes, misclassifications, and borderline decisions made
 
 ---
 
-## Review Entries
-
-*(Review the generated `index.html` dashboard in your browser and log any mistakes or borderline classifications below.)*
-
 ### Format:
-<!--
-- **Comment #<ID>**:
-  - **Clef's label:** `<predicted_label>`
-  - **Human label:** `<your_label>`
-  - **Reason:** <1-2 sentences explaining why the classification was wrong or borderline.>
--->
+
+- **Comment #27**:
+  - **Clef's label:** `toxic`
+  - **Human label:** `borderline`
+  - **Reason:** The comment unfairly generalizes about all girls. The person could have expressed their opinion in a more constructive way.
 
 
