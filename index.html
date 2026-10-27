@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Forum Moderation Dashboard | Cloudflare Clef</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-canvas: #ffffff;
+      --bg-surface: #ffffff;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --text-subtle: #94a3b8;
+      --border-color: #e2e8f0;
+      --border-focus: #3b82f6;
+
+      --accent-acceptable: #10b981;
+      --accent-acceptable-bg: #ecfdf5;
+      --accent-acceptable-border: #a7f3d0;
+      --accent-acceptable-text: #065f46;
+
+      --accent-toxic: #ef4444;
+      --accent-toxic-bg: #fef2f2;
+      --accent-toxic-border: #fecaca;
+      --accent-toxic-text: #991b1b;
+
+      --accent-spam: #f59e0b;
+      --accent-spam-bg: #fffbeb;
+      --accent-spam-border: #fde68a;
+      --accent-spam-text: #92400e;
+
+      --accent-borderline: #8b5cf6;
+      --accent-borderline-bg: #f5f3ff;
+      --accent-borderline-border: #ddd6fe;
+      --accent-borderline-text: #5b21b6;
+
+      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+      --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.07), 0 2px 4px -2px rgb(0 0 0 / 0.07);
+      --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.08);
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background-color: var(--bg-canvas);
+      color: var(--text-main);
+      line-height: 1.5;
+      padding-bottom: 80px;
+    }
+
+    header {
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border-color);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      backdrop-filter: blur(8px);
+    }
+
+    .header-container {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 18px 24px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .brand-title h1 {
+      font-size: 1.25rem;
+      font-weight: 800;
+      letter-spacing: -0.025em;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .badge-model {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      background: #e0e7ff;
+      color: #3730a3;
+      padding: 3px 8px;
+      border-radius: 9999px;
+      font-weight: 600;
+    }
+
+    .main-container {
+      max-width: 1280px;
+      margin: 28px auto;
+      padding: 0 24px;
+    }
+
+    /* Stats Grid */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .stat-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 16px 20px;
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .stat-card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+    }
+
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 4px;
+      height: 100%;
+    }
+
+    .stat-card.total::before { background: #64748b; }
+    .stat-card.acceptable::before { background: var(--accent-acceptable); }
+    .stat-card.toxic::before { background: var(--accent-toxic); }
+    .stat-card.spam::before { background: var(--accent-spam); }
+    .stat-card.borderline::before { background: var(--accent-borderline); }
+
+    .stat-label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .stat-value {
+      font-size: 1.85rem;
+      font-weight: 800;
+      margin-top: 4px;
+      color: var(--text-main);
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+    }
+
+    .stat-percent {
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+
+    /* Distribution Progress Bar */
+    .distribution-bar-wrapper {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 14px 20px;
+      margin-bottom: 24px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .distribution-title {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .bar-container {
+      height: 12px;
+      width: 100%;
+      background: var(--border-color);
+      border-radius: 9999px;
+      overflow: hidden;
+      display: flex;
+    }
+
+    .bar-segment {
+      height: 100%;
+      transition: width 0.3s ease;
+    }
+    .bar-segment.acceptable { background: var(--accent-acceptable); }
+    .bar-segment.toxic { background: var(--accent-toxic); }
+    .bar-segment.spam { background: var(--accent-spam); }
+
+    /* Controls Bar */
+    .controls-panel {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 16px 20px;
+      margin-bottom: 24px;
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .filter-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .tab-btn {
+      background: var(--bg-canvas);
+      color: var(--text-muted);
+      border: 1px solid var(--border-color);
+      padding: 8px 14px;
+      border-radius: var(--radius-sm);
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .tab-btn:hover {
+      background: var(--border-color);
+      color: var(--text-main);
+    }
+
+    .tab-btn.active {
+      background: var(--text-main);
+      color: var(--bg-surface);
+      border-color: var(--text-main);
+    }
+
+    .tab-btn .tab-count {
+      font-size: 0.75rem;
+      padding: 2px 6px;
+      border-radius: 9999px;
+      background: rgba(125, 125, 125, 0.15);
+    }
+
+    .search-sort-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      flex: 1;
+      justify-content: flex-end;
+      min-width: 280px;
+    }
+
+    .search-box {
+      position: relative;
+      flex: 1;
+      max-width: 320px;
+    }
+
+    .search-box input {
+      width: 100%;
+      padding: 8px 14px 8px 36px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-color);
+      background: var(--bg-surface);
+      color: var(--text-main);
+      font-size: 0.875rem;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .search-box input:focus {
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-subtle);
+      pointer-events: none;
+    }
+
+    .sort-select {
+      padding: 8px 14px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-color);
+      font-size: 0.875rem;
+      background: var(--bg-surface);
+      color: var(--text-main);
+      cursor: pointer;
+      outline: none;
+    }
+
+    /* Comments Cards Grid */
+    .comments-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 14px;
+    }
+
+    .comment-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 18px 22px;
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .comment-card:hover {
+      border-color: var(--border-focus);
+      box-shadow: var(--shadow-md);
+    }
+
+    .card-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .author-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .avatar {
+      width: 34px;
+      height: 34px;
+      border-radius: 9999px;
+      background: var(--border-color);
+      color: var(--text-main);
+      font-weight: 700;
+      font-size: 0.8rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-transform: uppercase;
+    }
+
+    .author-name {
+      font-weight: 700;
+      font-size: 0.95rem;
+      color: var(--text-main);
+    }
+
+    .thread-tag {
+      font-size: 0.75rem;
+      background: var(--bg-canvas);
+      color: var(--text-muted);
+      border: 1px solid var(--border-color);
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-weight: 600;
+    }
+
+    .meta-details {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .id-badge {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      background: var(--bg-canvas);
+      border: 1px solid var(--border-color);
+      padding: 2px 7px;
+      border-radius: 6px;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .comment-text {
+      font-size: 0.95rem;
+      color: var(--text-main);
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-break: break-word;
+      background: #f8fafc;
+      padding: 12px 16px;
+      border-radius: var(--radius-sm);
+      border-left: 3px solid #cbd5e1;
+    }
+
+    .card-bottom {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 14px;
+      padding-top: 8px;
+      border-top: 1px solid var(--border-color);
+    }
+
+    .prediction-group {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .decision-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 9999px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .decision-pill.acceptable {
+      background: var(--accent-acceptable-bg);
+      color: var(--accent-acceptable-text);
+      border: 1px solid var(--accent-acceptable-border);
+    }
+
+    .decision-pill.toxic {
+      background: var(--accent-toxic-bg);
+      color: var(--accent-toxic-text);
+      border: 1px solid var(--accent-toxic-border);
+    }
+
+    .decision-pill.spam {
+      background: var(--accent-spam-bg);
+      color: var(--accent-spam-text);
+      border: 1px solid var(--accent-spam-border);
+    }
+
+    .confidence-tag {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .borderline-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: var(--accent-borderline-bg);
+      color: var(--accent-borderline-text);
+      border: 1px solid var(--accent-borderline-border);
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 0.72rem;
+      font-weight: 600;
+    }
+
+    .probs-bar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      color: var(--text-muted);
+    }
+
+    .bar-mini-wrapper {
+      width: 70px;
+      height: 6px;
+      background: var(--border-color);
+      border-radius: 9999px;
+      overflow: hidden;
+      display: flex;
+    }
+
+    .actions-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-mistake {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      padding: 5px 10px;
+      border-radius: var(--radius-sm);
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .btn-mistake:hover {
+      background: var(--bg-canvas);
+      border-color: var(--text-muted);
+      color: var(--text-main);
+    }
+
+    .copied-toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #0f172a;
+      color: #ffffff;
+      padding: 10px 18px;
+      border-radius: var(--radius-sm);
+      font-size: 0.85rem;
+      font-weight: 600;
+      box-shadow: var(--shadow-lg);
+      transform: translateY(100px);
+      opacity: 0;
+      transition: all 0.25s ease;
+      z-index: 100;
+    }
+
+    .copied-toast.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 48px 20px;
+      background: var(--bg-surface);
+      border: 1px dashed var(--border-color);
+      border-radius: var(--radius-md);
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="header-container">
+      <div class="brand-title">
+        <h1>
+          Forum Comment Moderation
+          <span class="badge-model">Cloudflare clef</span>
+        </h1>
+      </div>
+      <div>
+        <span class="id-badge">Total: 100 items</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="main-container">
+
+    <!-- KPI Summary Cards -->
+    <section class="stats-grid">
+      <div class="stat-card total">
+        <span class="stat-label">Total Comments</span>
+        <div class="stat-value">100</div>
+      </div>
+      <div class="stat-card acceptable">
+        <span class="stat-label">Acceptable</span>
+        <div class="stat-value">
+          72
+          <span class="stat-percent">(72.0%)</span>
+        </div>
+      </div>
+      <div class="stat-card toxic">
+        <span class="stat-label">Toxic</span>
+        <div class="stat-value">
+          14
+          <span class="stat-percent">(14.0%)</span>
+        </div>
+      </div>
+      <div class="stat-card spam">
+        <span class="stat-label">Spam</span>
+        <div class="stat-value">
+          14
+          <span class="stat-percent">(14.0%)</span>
+        </div>
+      </div>
+      <div class="stat-card borderline">
+        <span class="stat-label">Borderline / Low Conf</span>
+        <div class="stat-value">
+          4
+          <span class="stat-percent">(4.0%)</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Visual Distribution Bar -->
+    <div class="distribution-bar-wrapper">
+      <div class="distribution-title">
+        <span>Moderation Distribution</span>
+        <span>72 Acceptable / 14 Toxic / 14 Spam</span>
+      </div>
+      <div class="bar-container">
+        <div class="bar-segment acceptable" style="width: 72.00%" title="Acceptable: 72"></div>
+        <div class="bar-segment toxic" style="width: 14.00%" title="Toxic: 14"></div>
+        <div class="bar-segment spam" style="width: 14.00%" title="Spam: 14"></div>
+      </div>
+    </div>
+
+    <!-- Controls & Filter Toolbar -->
+    <section class="controls-panel">
+      <div class="filter-tabs">
+        <button class="tab-btn active" data-filter="all">All <span class="tab-count">100</span></button>
+        <button class="tab-btn" data-filter="acceptable">Acceptable <span class="tab-count">72</span></button>
+        <button class="tab-btn" data-filter="toxic">Toxic <span class="tab-count">14</span></button>
+        <button class="tab-btn" data-filter="spam">Spam <span class="tab-count">14</span></button>
+        <button class="tab-btn" data-filter="borderline">&#9873; Borderline <span class="tab-count">4</span></button>
+      </div>
+
+      <div class="search-sort-group">
+        <div class="search-box">
+          <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <input type="text" id="searchInput" placeholder="Search comments, author, ID...">
+        </div>
+
+        <select id="sortSelect" class="sort-select">
+          <option value="id-asc">Sort: ID (1 &rarr; 100)</option>
+          <option value="id-desc">Sort: ID (100 &rarr; 1)</option>
+          <option value="conf-asc">Sort: Lowest Confidence First</option>
+          <option value="conf-desc">Sort: Highest Confidence First</option>
+        </select>
+      </div>
+    </section>
+
+    <!-- Comments Container -->
+    <div id="commentsContainer" class="comments-grid">
+      <!-- Injected by JavaScript -->
+    </div>
+
+  </main>
+
+  <div id="toast" class="copied-toast">Template copied for MISTAKES.md!</div>
+
+  <script>
+    const commentsData = [{"id": 1, "author": "Aditya Kulkarni", "thread": "Doubts", "posted_at": "2026-10-12 09:14", "comment": "Ma'am, is it okay if we use Claude for the frontend and Codex for the backend logic, or should the whole artifact be built with one tool?", "classification": {"choice": "acceptable", "confidence": 0.8597, "probabilities": {"acceptable": 0.9515, "toxic": 0.027, "spam": 0.0215}}}, {"id": 2, "author": "Sneha Iyer", "thread": "Share your artifacts", "posted_at": "2026-10-12 10:02", "comment": "Submitted my artifact: a timetable clash checker for our dept. Claude made the UI in like 10 mins but I spent 2 hours fixing the CSV parsing. Link is in my submission.", "classification": {"choice": "acceptable", "confidence": 0.88, "probabilities": {"acceptable": 0.9587, "toxic": 0.0212, "spam": 0.0201}}}, {"id": 3, "author": "AssignmentGuru_99", "thread": "General", "posted_at": "2026-10-12 10:40", "comment": "\ud83d\udd25\ud83d\udd25 GET YOUR ASSIGNMENTS DONE BY EXPERTS \ud83d\udd25\ud83d\udd25 Claude/Codex/ML projects, plagiarism free, 100% marks guaranteed. WhatsApp +91 90000 12345. Special discount for CS307 students!!", "classification": {"choice": "spam", "confidence": 0.9364, "probabilities": {"acceptable": 0.0135, "toxic": 0.0081, "spam": 0.9784}}}, {"id": 4, "author": "Pooja Nair", "thread": "Doubts", "posted_at": "2026-10-12 11:25", "comment": "Does the reflection doc need to include the prompts we used? Mine is around 40 prompts, that seems like too much to paste.", "classification": {"choice": "acceptable", "confidence": 0.8842, "probabilities": {"acceptable": 0.9602, "toxic": 0.0211, "spam": 0.0187}}}, {"id": 5, "author": "Harsh Agarwal", "thread": "Share your artifacts", "posted_at": "2026-10-12 12:10", "comment": "@Rohit your expense splitter is really clean. One suggestion: there's a rounding error when splitting \u20b9100 three ways, it shows 33.33 x 3 = 99.99.", "classification": {"choice": "acceptable", "confidence": 0.8906, "probabilities": {"acceptable": 0.9625, "toxic": 0.0204, "spam": 0.0171}}}, {"id": 6, "author": "Vikram Singh", "thread": "Share your artifacts", "posted_at": "2026-10-12 12:31", "comment": "Rohit's project is copy-paste from GitHub, everyone knows. Shameless guy, and sir still gives him marks. Pathetic.", "classification": {"choice": "toxic", "confidence": 0.7401, "probabilities": {"acceptable": 0.0854, "toxic": 0.9052, "spam": 0.0094}}}, {"id": 7, "author": "Mohd. Faizan", "thread": "Doubts", "posted_at": "2026-10-12 13:05", "comment": "Bhai kisi ko Codex ka access mila? My college email isn't working for the student plan.", "classification": {"choice": "acceptable", "confidence": 0.8607, "probabilities": {"acceptable": 0.9518, "toxic": 0.0259, "spam": 0.0223}}}, {"id": 8, "author": "Shreya Patil", "thread": "Submission & grading", "posted_at": "2026-10-12 14:47", "comment": "Ma'am, is a deadline extension possible? Our hostel wifi was down from Thursday night till Saturday, the warden can confirm.", "classification": {"choice": "acceptable", "confidence": 0.8209, "probabilities": {"acceptable": 0.9373, "toxic": 0.0348, "spam": 0.0279}}}, {"id": 9, "author": "Vivek Menon", "thread": "Doubts", "posted_at": "2026-10-12 15:20", "comment": "I found that Claude kept adding features I didn't ask for. Telling it \"do only X, nothing else\" at the start helped a lot.", "classification": {"choice": "acceptable", "confidence": 0.8646, "probabilities": {"acceptable": 0.9532, "toxic": 0.0259, "spam": 0.0209}}}, {"id": 10, "author": "Free AI Deals", "thread": "General", "posted_at": "2026-10-12 16:02", "comment": "Join our Telegram group for FREE Claude Pro & ChatGPT Plus accounts \ud83e\udd11 only \u20b9199 lifetime. t.me/aitoolsdeal_india (limited slots)", "classification": {"choice": "spam", "confidence": 0.9165, "probabilities": {"acceptable": 0.0181, "toxic": 0.0103, "spam": 0.9716}}}, {"id": 11, "author": "Karthik Reddy", "thread": "Doubts", "posted_at": "2026-10-12 17:33", "comment": "Can we deploy on Vercel or does it have to run locally? Mine needs an API key and I don't want to expose it publicly.", "classification": {"choice": "acceptable", "confidence": 0.8625, "probabilities": {"acceptable": 0.9524, "toxic": 0.0258, "spam": 0.0218}}}, {"id": 12, "author": "Ananya Joshi", "thread": "Doubts", "posted_at": "2026-10-12 18:15", "comment": "Good point Sneha made in the lab: if the artifact stores data in localStorage, mention it in the reflection, since the data stays only in your browser.", "classification": {"choice": "acceptable", "confidence": 0.8597, "probabilities": {"acceptable": 0.9515, "toxic": 0.0272, "spam": 0.0213}}}, {"id": 13, "author": "Saurabh Yadav", "thread": "Doubts", "posted_at": "2026-10-12 19:02", "comment": "Seriously who asks these dumb questions? Read the assignment PDF before posting, idiots. Wasting everyone's time.", "classification": {"choice": "toxic", "confidence": 0.896, "probabilities": {"acceptable": 0.0291, "toxic": 0.9642, "spam": 0.0067}}}, {"id": 14, "author": "Nikhil Bansal", "thread": "Submission & grading", "posted_at": "2026-10-12 20:40", "comment": "Honestly I think this assignment is too easy for 15 marks, the AI does 80% of the work. Grading should focus more on the reflection part.", "classification": {"choice": "acceptable", "confidence": 0.9208, "probabilities": {"acceptable": 0.9731, "toxic": 0.0148, "spam": 0.0121}}}, {"id": 15, "author": "Ankit Sharma", "thread": "Share your artifacts", "posted_at": "2026-10-13 08:55", "comment": "My quiz app for GATE prep is up. Feedback welcome, especially on the scoring logic \u2014 not sure the negative marking works right.", "classification": {"choice": "acceptable", "confidence": 0.9091, "probabilities": {"acceptable": 0.969, "toxic": 0.0136, "spam": 0.0174}}}, {"id": 16, "author": "Meera Krishnan", "thread": "Share your artifacts", "posted_at": "2026-10-13 09:30", "comment": "Tried it Ankit, the negative marking subtracts 1/3 even for unattempted questions. Check the condition where you compute the score.", "classification": {"choice": "acceptable", "confidence": 0.9074, "probabilities": {"acceptable": 0.9684, "toxic": 0.0194, "spam": 0.0122}}}, {"id": 17, "author": "Ritu Verma", "thread": "General", "posted_at": "2026-10-13 10:12", "comment": "Earn \u20b95000 daily from home using AI tools!! No investment. Students also eligible. DM me or visit earnwithai-india.in", "classification": {"choice": "spam", "confidence": 0.9396, "probabilities": {"acceptable": 0.0118, "toxic": 0.0086, "spam": 0.9796}}}, {"id": 18, "author": "Tanvi Gupta", "thread": "Submission & grading", "posted_at": "2026-10-13 11:05", "comment": "Sir, the rubric says \"originality\" \u2014 does a to-do app count as original if we add a feature like voice input?", "classification": {"choice": "acceptable", "confidence": 0.876, "probabilities": {"acceptable": 0.9573, "toxic": 0.0224, "spam": 0.0203}}}, {"id": 19, "author": "Rahul Chauhan", "thread": "Share your artifacts", "posted_at": "2026-10-13 11:48", "comment": "Bro your app looks like it was made by a 5th class kid lol. Delete it and save us the embarrassment \ud83e\udd21", "classification": {"choice": "toxic", "confidence": 0.6487, "probabilities": {"acceptable": 0.123, "toxic": 0.8664, "spam": 0.0106}}}, {"id": 20, "author": "Ishita Banerjee", "thread": "General", "posted_at": "2026-10-13 12:20", "comment": "Thank you ma'am for the extra session on prompting yesterday. The bit about giving examples of the output format was super useful.", "classification": {"choice": "acceptable", "confidence": 0.8831, "probabilities": {"acceptable": 0.9598, "toxic": 0.0224, "spam": 0.0178}}}, {"id": 21, "author": "Siddharth Rao", "thread": "Doubts", "posted_at": "2026-10-13 13:44", "comment": "Codex wrote my tests but half of them were testing the wrong thing. Lesson learned: read the generated tests, don't just see green \u2705 and move on.", "classification": {"choice": "acceptable", "confidence": 0.8724, "probabilities": {"acceptable": 0.956, "toxic": 0.0255, "spam": 0.0185}}}, {"id": 22, "author": "Aman Tiwari", "thread": "Doubts", "posted_at": "2026-10-13 15:10", "comment": "Is anyone else getting \"rate limit exceeded\" on the free tier? It's been blocking me since afternoon.", "classification": {"choice": "acceptable", "confidence": 0.8867, "probabilities": {"acceptable": 0.9611, "toxic": 0.0221, "spam": 0.0168}}}, {"id": 23, "author": "Pooja Nair", "thread": "Doubts", "posted_at": "2026-10-13 15:26", "comment": "Yes same, try after midnight, it reset for me around 12:30.", "classification": {"choice": "acceptable", "confidence": 0.886, "probabilities": {"acceptable": 0.9608, "toxic": 0.0216, "spam": 0.0176}}}, {"id": 24, "author": "Raju Tech", "thread": "General", "posted_at": "2026-10-13 16:03", "comment": "Subscribe to my YouTube channel \"TechWithRaju\" for the full solution of CS307 assignment 3 step by step!! Link in bio. Like share subscribe \ud83d\ude4f\ud83d\ude4f", "classification": {"choice": "spam", "confidence": 0.7284, "probabilities": {"acceptable": 0.0863, "toxic": 0.013, "spam": 0.9007}}}, {"id": 25, "author": "Kavya Pillai", "thread": "Share your artifacts", "posted_at": "2026-10-13 17:22", "comment": "Our group made a canteen menu voting app. Problem: anyone can vote 100 times by refreshing. Any simple way to stop this without a login?", "classification": {"choice": "acceptable", "confidence": 0.8972, "probabilities": {"acceptable": 0.9648, "toxic": 0.0186, "spam": 0.0166}}}, {"id": 26, "author": "Harsh Agarwal", "thread": "Share your artifacts", "posted_at": "2026-10-13 17:40", "comment": "Use a localStorage flag for basic prevention, it's not secure but for a class demo it's fine. Or ask for roll number and check duplicates.", "classification": {"choice": "acceptable", "confidence": 0.8215, "probabilities": {"acceptable": 0.9376, "toxic": 0.0302, "spam": 0.0322}}}, {"id": 27, "author": "Deepak Mishra", "thread": "Submission & grading", "posted_at": "2026-10-13 19:05", "comment": "Girls in this class only get good marks because sir is soft on them. Ishita's project is average at best.", "classification": {"choice": "toxic", "confidence": 0.3233, "probabilities": {"acceptable": 0.3215, "toxic": 0.6674, "spam": 0.0111}}}, {"id": 28, "author": "Omkar Jadhav", "thread": "Doubts", "posted_at": "2026-10-13 20:30", "comment": "Sharing a tip: ask Claude to explain the code it wrote line by line before you submit. Viva mein pakde jaoge otherwise \ud83d\ude05", "classification": {"choice": "acceptable", "confidence": 0.7733, "probabilities": {"acceptable": 0.9195, "toxic": 0.0501, "spam": 0.0304}}}, {"id": 29, "author": "Prateek Saxena", "thread": "Submission & grading", "posted_at": "2026-10-14 09:02", "comment": "Is the viva individual or group-wise? Some of us did most of the work and others just watched.", "classification": {"choice": "acceptable", "confidence": 0.8929, "probabilities": {"acceptable": 0.9633, "toxic": 0.0239, "spam": 0.0128}}}, {"id": 30, "author": "Ritika Sen", "thread": "Submission & grading", "posted_at": "2026-10-14 09:20", "comment": "^ this. In my group one member didn't even open the repo. How do we report this without drama?", "classification": {"choice": "acceptable", "confidence": 0.8367, "probabilities": {"acceptable": 0.943, "toxic": 0.0414, "spam": 0.0156}}}, {"id": 31, "author": "Rahul Chauhan", "thread": "Submission & grading", "posted_at": "2026-10-14 09:41", "comment": "@Karan we all know you're the one who didn't open the repo. Useless fellow, always free-riding. Get lost.", "classification": {"choice": "toxic", "confidence": 0.9034, "probabilities": {"acceptable": 0.0276, "toxic": 0.9669, "spam": 0.0055}}}, {"id": 32, "author": "Aditya Kulkarni", "thread": "Doubts", "posted_at": "2026-10-14 10:15", "comment": "Can we use Gemini or other models, or strictly Claude/Codex? The assignment title says Claude/Codex but the PDF says \"any AI coding assistant\".", "classification": {"choice": "acceptable", "confidence": 0.8716, "probabilities": {"acceptable": 0.9557, "toxic": 0.0237, "spam": 0.0206}}}, {"id": 33, "author": "exam_updates_2026", "thread": "General", "posted_at": "2026-10-14 11:00", "comment": "URGENT: CS307 end-sem question paper leaked!! Get it before it's removed. \u20b9499 only. Pay on UPI 9000012345@upi and send screenshot.", "classification": {"choice": "spam", "confidence": 0.9157, "probabilities": {"acceptable": 0.0193, "toxic": 0.0094, "spam": 0.9713}}}, {"id": 34, "author": "Shreya Patil", "thread": "Submission & grading", "posted_at": "2026-10-14 21:12", "comment": "Sir, the submission link on Moodle is showing \"closed\" even though the deadline is tonight 11:59 PM.", "classification": {"choice": "acceptable", "confidence": 0.8761, "probabilities": {"acceptable": 0.9573, "toxic": 0.0244, "spam": 0.0183}}}, {"id": 35, "author": "Rakesh M (TA)", "thread": "Submission & grading", "posted_at": "2026-10-14 21:30", "comment": "It's open now, please refresh. It was a timezone setting issue on the course page.", "classification": {"choice": "acceptable", "confidence": 0.8493, "probabilities": {"acceptable": 0.9477, "toxic": 0.0273, "spam": 0.025}}}, {"id": 36, "author": "Divya Hegde", "thread": "Share your artifacts", "posted_at": "2026-10-15 08:40", "comment": "My artifact helps my mom track her tailoring orders. She actually uses it now! Never thought an assignment would be useful at home.", "classification": {"choice": "acceptable", "confidence": 0.8742, "probabilities": {"acceptable": 0.9566, "toxic": 0.0228, "spam": 0.0206}}}, {"id": 37, "author": "Ananya Joshi", "thread": "Share your artifacts", "posted_at": "2026-10-15 09:05", "comment": "That's amazing Divya \ud83d\udc4f Maybe add a WhatsApp reminder for due dates? Could be a nice extension.", "classification": {"choice": "acceptable", "confidence": 0.7667, "probabilities": {"acceptable": 0.9168, "toxic": 0.0268, "spam": 0.0564}}}, {"id": 38, "author": "Kunal Bhatia", "thread": "Doubts", "posted_at": "2026-10-15 10:18", "comment": "Doubt: if Claude generates code that's similar to some open-source project, is that plagiarism? How do we cite it?", "classification": {"choice": "acceptable", "confidence": 0.8508, "probabilities": {"acceptable": 0.9482, "toxic": 0.0288, "spam": 0.023}}}, {"id": 39, "author": "Dr. Lakshmi Narayanan", "thread": "Doubts", "posted_at": "2026-10-15 11:02", "comment": "Good question. Mention the tool and your prompts in the reflection, and if you knowingly used a library or snippet, cite it like any other source.", "classification": {"choice": "acceptable", "confidence": 0.8503, "probabilities": {"acceptable": 0.9481, "toxic": 0.0279, "spam": 0.024}}}, {"id": 40, "author": "Shree Computers", "thread": "General", "posted_at": "2026-10-15 12:30", "comment": "Cheap laptops for engineering students!! i5 12th gen just \u20b918,999. Limited stock. Call Shree Computers, Shivaji Nagar \ud83d\udcde 90000 54321", "classification": {"choice": "spam", "confidence": 0.9098, "probabilities": {"acceptable": 0.0196, "toxic": 0.0112, "spam": 0.9692}}}, {"id": 41, "author": "Vikram Singh", "thread": "Share your artifacts", "posted_at": "2026-10-15 13:15", "comment": "This forum is full of sir's chamchas. Everybody praising every useless app. Fake people.", "classification": {"choice": "toxic", "confidence": 0.5569, "probabilities": {"acceptable": 0.1638, "toxic": 0.8232, "spam": 0.013}}}, {"id": 42, "author": "Kunal Bhatia", "thread": "General", "posted_at": "2026-10-15 14:00", "comment": "I'm not sure using AI for assignments is actually teaching us anything. I learned more debugging the output than from the tool itself.", "classification": {"choice": "acceptable", "confidence": 0.899, "probabilities": {"acceptable": 0.9654, "toxic": 0.019, "spam": 0.0156}}}, {"id": 43, "author": "Siddharth Rao", "thread": "General", "posted_at": "2026-10-15 14:22", "comment": "Disagree a bit \u2014 knowing what to ask and how to check the output is itself a skill. Industry is going this way anyway.", "classification": {"choice": "acceptable", "confidence": 0.8728, "probabilities": {"acceptable": 0.9561, "toxic": 0.0263, "spam": 0.0176}}}, {"id": 44, "author": "Vivek Menon", "thread": "Doubts", "posted_at": "2026-10-15 16:35", "comment": "My Codex output used a deprecated pandas function (append). Fixed it with concat. Posting in case anyone else hits the same error.", "classification": {"choice": "acceptable", "confidence": 0.8723, "probabilities": {"acceptable": 0.956, "toxic": 0.0241, "spam": 0.0199}}}, {"id": 45, "author": "Tanvi Gupta", "thread": "Doubts", "posted_at": "2026-10-15 16:50", "comment": "Thanks Vivek, was stuck on exactly this for an hour \ud83d\ude4f", "classification": {"choice": "acceptable", "confidence": 0.8216, "probabilities": {"acceptable": 0.9376, "toxic": 0.0366, "spam": 0.0258}}}, {"id": 46, "author": "CryptoKing Official", "thread": "General", "posted_at": "2026-10-15 18:00", "comment": "\ud83d\udcb0 Crypto signals group \ud83d\udcb0 90% accuracy, students making \u20b950k/month. Join fast before closing: bit.ly/crypto-signal-vip", "classification": {"choice": "spam", "confidence": 0.9409, "probabilities": {"acceptable": 0.0117, "toxic": 0.0083, "spam": 0.98}}}, {"id": 47, "author": "Mohd. Faizan", "thread": "Submission & grading", "posted_at": "2026-10-16 09:10", "comment": "Ma'am, will the marks be uploaded before the Diwali break?", "classification": {"choice": "acceptable", "confidence": 0.8658, "probabilities": {"acceptable": 0.9536, "toxic": 0.0279, "spam": 0.0185}}}, {"id": 48, "author": "Deepak Mishra", "thread": "Submission & grading", "posted_at": "2026-10-16 10:25", "comment": "Whoever gave my project 2/10 in peer review, you're a jealous loser. I know who you are and I'll see you outside the lab.", "classification": {"choice": "toxic", "confidence": 0.8847, "probabilities": {"acceptable": 0.0337, "toxic": 0.9602, "spam": 0.0061}}}, {"id": 49, "author": "Kavya Pillai", "thread": "Submission & grading", "posted_at": "2026-10-16 11:00", "comment": "Peer review feedback was helpful, thanks to whoever pointed out the mobile layout breaking. Fixed it.", "classification": {"choice": "acceptable", "confidence": 0.883, "probabilities": {"acceptable": 0.9598, "toxic": 0.0233, "spam": 0.0169}}}, {"id": 50, "author": "Riya Thomas", "thread": "Doubts", "posted_at": "2026-10-16 11:40", "comment": "Can someone explain what \"artifact\" means here? Is it just the code or a deployed thing people can open?", "classification": {"choice": "acceptable", "confidence": 0.8625, "probabilities": {"acceptable": 0.9525, "toxic": 0.0249, "spam": 0.0226}}}, {"id": 51, "author": "Rakesh M (TA)", "thread": "Doubts", "posted_at": "2026-10-16 12:05", "comment": "From the PDF: artifact = a working, shareable thing (web page, tool, small app) + a 1-page reflection. Code alone isn't enough.", "classification": {"choice": "acceptable", "confidence": 0.8714, "probabilities": {"acceptable": 0.9557, "toxic": 0.0232, "spam": 0.0211}}}, {"id": 52, "author": "Shruti Deshpande", "thread": "Share your artifacts", "posted_at": "2026-10-16 14:15", "comment": "Built a Marathi\u2013English vocabulary flashcard app. Claude handled the Devanagari fonts without issues, which surprised me.", "classification": {"choice": "acceptable", "confidence": 0.9086, "probabilities": {"acceptable": 0.9688, "toxic": 0.0168, "spam": 0.0144}}}, {"id": 53, "author": "Karthik Reddy", "thread": "Share your artifacts", "posted_at": "2026-10-16 14:40", "comment": "Nice! Does it do audio pronunciation? The browser speech API supports mr-IN I think.", "classification": {"choice": "acceptable", "confidence": 0.8554, "probabilities": {"acceptable": 0.9499, "toxic": 0.0249, "spam": 0.0252}}}, {"id": 54, "author": "Assignment Help Zone", "thread": "General", "posted_at": "2026-10-16 15:30", "comment": "Need help with your assignment? Our PhD experts do Python, Java, ML, AI projects. Fast delivery in 24 hours. Visit www.assignmenthelpzone.co.in or mail help@assignmenthelpzone.co.in", "classification": {"choice": "spam", "confidence": 0.9006, "probabilities": {"acceptable": 0.0255, "toxic": 0.0086, "spam": 0.9659}}}, {"id": 55, "author": "Saurabh Yadav", "thread": "Share your artifacts", "posted_at": "2026-10-16 16:02", "comment": "Ankit's GATE quiz app is trash just like his GATE score will be \ud83d\ude02\ud83d\ude02", "classification": {"choice": "toxic", "confidence": 0.6844, "probabilities": {"acceptable": 0.1104, "toxic": 0.8817, "spam": 0.0079}}}, {"id": 56, "author": "Prateek Saxena", "thread": "Submission & grading", "posted_at": "2026-10-16 18:20", "comment": "Request: can the TA share a sample of a good reflection from last year? Not sure what level of detail is expected.", "classification": {"choice": "acceptable", "confidence": 0.8708, "probabilities": {"acceptable": 0.9554, "toxic": 0.0229, "spam": 0.0217}}}, {"id": 57, "author": "Aman Tiwari", "thread": "Submission & grading", "posted_at": "2026-10-16 22:45", "comment": "Sir, I submitted the wrong link by mistake (my old repo). Can you allow a resubmission?", "classification": {"choice": "acceptable", "confidence": 0.8196, "probabilities": {"acceptable": 0.9369, "toxic": 0.0302, "spam": 0.0329}}}, {"id": 58, "author": "Riya Thomas", "thread": "Doubts", "posted_at": "2026-10-17 09:00", "comment": "Is it fine if our artifact uses a free public API (like weather)? Or should everything be self-contained?", "classification": {"choice": "acceptable", "confidence": 0.8797, "probabilities": {"acceptable": 0.9586, "toxic": 0.022, "spam": 0.0194}}}, {"id": 59, "author": "Meera Krishnan", "thread": "General", "posted_at": "2026-10-17 10:30", "comment": "My experience: Claude is better at explaining, Codex felt faster for refactoring. Both hallucinated a library function once.", "classification": {"choice": "acceptable", "confidence": 0.8736, "probabilities": {"acceptable": 0.9564, "toxic": 0.0248, "spam": 0.0188}}}, {"id": 60, "author": "Nikhil Bansal", "thread": "General", "posted_at": "2026-10-17 10:52", "comment": "Agree. Codex invented a \"pd.read_html_table\" function for me \ud83d\ude02 Always run the code.", "classification": {"choice": "acceptable", "confidence": 0.85, "probabilities": {"acceptable": 0.9479, "toxic": 0.0314, "spam": 0.0207}}}, {"id": 61, "author": "Rahul Chauhan", "thread": "General", "posted_at": "2026-10-17 11:10", "comment": "Shut up Meera, nobody cares about your \"experience\". Topper behaviour as usual \ud83d\ude44", "classification": {"choice": "toxic", "confidence": 0.8865, "probabilities": {"acceptable": 0.0321, "toxic": 0.9609, "spam": 0.007}}}, {"id": 62, "author": "Omkar Jadhav", "thread": "Share your artifacts", "posted_at": "2026-10-17 12:40", "comment": "Our hostel group made an attendance tracker for the mess. Uploaded screenshots to the drive folder as instructed.", "classification": {"choice": "acceptable", "confidence": 0.76, "probabilities": {"acceptable": 0.9145, "toxic": 0.0429, "spam": 0.0426}}}, {"id": 63, "author": "Notes Wala Bhaiya", "thread": "General", "posted_at": "2026-10-17 13:30", "comment": "Hello dear friends, I am selling original notes of all subjects 3rd year CSE. PDF available at low price. Contact on Instagram @notes.wala.bhaiya", "classification": {"choice": "spam", "confidence": 0.9408, "probabilities": {"acceptable": 0.012, "toxic": 0.008, "spam": 0.98}}}, {"id": 64, "author": "Arjun Das", "thread": "Submission & grading", "posted_at": "2026-10-17 15:05", "comment": "Ma'am, our artifact is for visually impaired users (screen-reader friendly bus timings). Can we get extra time to test it with actual users from the NGO?", "classification": {"choice": "acceptable", "confidence": 0.8702, "probabilities": {"acceptable": 0.9552, "toxic": 0.0235, "spam": 0.0213}}}, {"id": 65, "author": "Neha Kapoor", "thread": "Submission & grading", "posted_at": "2026-10-17 15:30", "comment": "That's a great project, Arjun. Happy to help test with NVDA if you need another tester.", "classification": {"choice": "acceptable", "confidence": 0.835, "probabilities": {"acceptable": 0.9425, "toxic": 0.0297, "spam": 0.0278}}}, {"id": 66, "author": "Sonu Kumar", "thread": "Doubts", "posted_at": "2026-10-17 17:10", "comment": "Kya reflection Hindi mein likh sakte hain? My English writing is not that good but I can explain properly in Hindi.", "classification": {"choice": "acceptable", "confidence": 0.8388, "probabilities": {"acceptable": 0.9439, "toxic": 0.0339, "spam": 0.0222}}}, {"id": 67, "author": "Ishita Banerjee", "thread": "Submission & grading", "posted_at": "2026-10-18 09:25", "comment": "The rubric weightage is unclear. 40% artifact, 40% reflection, 20% viva \u2014 is that correct? The slides said something different.", "classification": {"choice": "acceptable", "confidence": 0.9034, "probabilities": {"acceptable": 0.967, "toxic": 0.0187, "spam": 0.0143}}}, {"id": 68, "author": "Ritika Sen", "thread": "Submission & grading", "posted_at": "2026-10-18 10:00", "comment": "The grading for assignment 2 was unfair in my opinion, the same output got different marks in different batches. Please clarify the re-evaluation process.", "classification": {"choice": "acceptable", "confidence": 0.914, "probabilities": {"acceptable": 0.9707, "toxic": 0.0172, "spam": 0.0121}}}, {"id": 69, "author": "Vikram Singh", "thread": "Submission & grading", "posted_at": "2026-10-18 10:22", "comment": "TA doesn't know anything himself, how will he grade AI projects? Clueless fellow should go back to school.", "classification": {"choice": "toxic", "confidence": 0.7375, "probabilities": {"acceptable": 0.0887, "toxic": 0.9039, "spam": 0.0074}}}, {"id": 70, "author": "Harsh Agarwal", "thread": "Doubts", "posted_at": "2026-10-18 12:15", "comment": "Tip for anyone using Claude artifacts: ask it to add a \"reset data\" button. Saved me during the demo when the test data got messed up.", "classification": {"choice": "acceptable", "confidence": 0.8664, "probabilities": {"acceptable": 0.9539, "toxic": 0.0244, "spam": 0.0217}}}, {"id": 71, "author": "Giveaway India", "thread": "General", "posted_at": "2026-10-18 13:00", "comment": "FREE iPhone 17 giveaway for college students \ud83c\udf89 Just fill the form with your name, college ID and Aadhaar number: forms-giveaway-india.com/iphone", "classification": {"choice": "spam", "confidence": 0.9337, "probabilities": {"acceptable": 0.0131, "toxic": 0.0094, "spam": 0.9775}}}, {"id": 72, "author": "Gaurav Pandey", "thread": "Share your artifacts", "posted_at": "2026-10-18 15:45", "comment": "Our team used Codex to convert old C++ lab programs into a small web visualizer for sorting algorithms. Feedback welcome!", "classification": {"choice": "acceptable", "confidence": 0.8874, "probabilities": {"acceptable": 0.9613, "toxic": 0.0185, "spam": 0.0202}}}, {"id": 73, "author": "Shruti Deshpande", "thread": "Share your artifacts", "posted_at": "2026-10-18 16:10", "comment": "Very nice, but the bubble sort animation is too fast to follow. Maybe add a speed slider?", "classification": {"choice": "acceptable", "confidence": 0.897, "probabilities": {"acceptable": 0.9647, "toxic": 0.0179, "spam": 0.0174}}}, {"id": 74, "author": "Tanvi Gupta", "thread": "Doubts", "posted_at": "2026-10-18 18:30", "comment": "Is there a word limit for the reflection? I wrote 1100 words, feels too long.", "classification": {"choice": "acceptable", "confidence": 0.8771, "probabilities": {"acceptable": 0.9577, "toxic": 0.0239, "spam": 0.0184}}}, {"id": 75, "author": "Pooja Nair", "thread": "Doubts", "posted_at": "2026-10-18 18:45", "comment": "Ma'am said max 1 page, so around 500 words.", "classification": {"choice": "acceptable", "confidence": 0.8394, "probabilities": {"acceptable": 0.9441, "toxic": 0.0319, "spam": 0.024}}}, {"id": 76, "author": "Deepak Mishra", "thread": "Share your artifacts", "posted_at": "2026-10-19 09:10", "comment": "Everyone from that side of the hostel copies, it's in their blood. Don't trust their \"original\" projects.", "classification": {"choice": "toxic", "confidence": 0.4636, "probabilities": {"acceptable": 0.2112, "toxic": 0.773, "spam": 0.0158}}}, {"id": 77, "author": "Gaurav Pandey", "thread": "Submission & grading", "posted_at": "2026-10-19 10:30", "comment": "Sir, what happens if our deployed link stops working after submission (free hosting expires)? Will we lose marks?", "classification": {"choice": "acceptable", "confidence": 0.8667, "probabilities": {"acceptable": 0.954, "toxic": 0.0253, "spam": 0.0207}}}, {"id": 78, "author": "Kavya Pillai", "thread": "Submission & grading", "posted_at": "2026-10-19 10:50", "comment": "I shared a short screen recording as a backup in case the link fails. Maybe others should do the same.", "classification": {"choice": "acceptable", "confidence": 0.8646, "probabilities": {"acceptable": 0.9532, "toxic": 0.0232, "spam": 0.0236}}}, {"id": 79, "author": "InstaGrowth Services", "thread": "General", "posted_at": "2026-10-19 12:00", "comment": "\ud83d\udc49 Get 10,000 Instagram followers in 1 day \ud83d\udc48 Real & active. Best for students starting tech pages. WhatsApp 90000 67890", "classification": {"choice": "spam", "confidence": 0.9455, "probabilities": {"acceptable": 0.0119, "toxic": 0.0065, "spam": 0.9816}}}, {"id": 80, "author": "Kunal Bhatia", "thread": "General", "posted_at": "2026-10-19 21:40", "comment": "I'm struggling honestly. Everyone is posting cool apps and mine barely works. Is it okay to submit something simple if the reflection is honest?", "classification": {"choice": "acceptable", "confidence": 0.9013, "probabilities": {"acceptable": 0.9663, "toxic": 0.0186, "spam": 0.0151}}}, {"id": 81, "author": "Neha Kapoor", "thread": "General", "posted_at": "2026-10-19 22:05", "comment": "Absolutely okay. Sir said in class that the reflection about what failed counts a lot. Don't stress, simple + honest > fancy + copied.", "classification": {"choice": "acceptable", "confidence": 0.85, "probabilities": {"acceptable": 0.9479, "toxic": 0.0321, "spam": 0.02}}}, {"id": 82, "author": "Kunal Bhatia", "thread": "General", "posted_at": "2026-10-19 22:20", "comment": "Thank you Neha, that really helps \ud83d\ude42", "classification": {"choice": "acceptable", "confidence": 0.8535, "probabilities": {"acceptable": 0.9492, "toxic": 0.0304, "spam": 0.0204}}}, {"id": 83, "author": "Saurabh Yadav", "thread": "General", "posted_at": "2026-10-19 22:48", "comment": "lol Kunal still crying about his project. Maybe engineering isn't for you bro, try BA.", "classification": {"choice": "toxic", "confidence": 0.5206, "probabilities": {"acceptable": 0.1887, "toxic": 0.8029, "spam": 0.0084}}}, {"id": 84, "author": "Sonu Kumar", "thread": "Doubts", "posted_at": "2026-10-20 09:30", "comment": "Doubt: Claude gave different code for the same prompt twice. Which one should we submit, and should we mention it?", "classification": {"choice": "acceptable", "confidence": 0.868, "probabilities": {"acceptable": 0.9544, "toxic": 0.0257, "spam": 0.0199}}}, {"id": 85, "author": "Meera Krishnan", "thread": "Doubts", "posted_at": "2026-10-20 09:55", "comment": "Submit the one you tested and understand. Mentioning the variation in your reflection is actually a good insight.", "classification": {"choice": "acceptable", "confidence": 0.8454, "probabilities": {"acceptable": 0.9463, "toxic": 0.03, "spam": 0.0237}}}, {"id": 86, "author": "Work From Home Jobs", "thread": "General", "posted_at": "2026-10-20 11:00", "comment": "Part time job for students: typing work, \u20b9800/day, no target. Registration fee only \u20b9299. Reply \"INTERESTED\" with your number.", "classification": {"choice": "spam", "confidence": 0.9332, "probabilities": {"acceptable": 0.0156, "toxic": 0.0071, "spam": 0.9773}}}, {"id": 87, "author": "Aditya Kulkarni", "thread": "Doubts", "posted_at": "2026-10-20 12:20", "comment": "Can we work on an existing personal project and extend it with AI, or must it be new?", "classification": {"choice": "acceptable", "confidence": 0.8712, "probabilities": {"acceptable": 0.9556, "toxic": 0.0244, "spam": 0.02}}}, {"id": 88, "author": "Saurabh Yadav", "thread": "Share your artifacts", "posted_at": "2026-10-20 13:10", "comment": "Ankit, sorry for that comment about your app and your GATE score, it was uncalled for. The app is actually good, just that one bug.", "classification": {"choice": "acceptable", "confidence": 0.6253, "probabilities": {"acceptable": 0.8568, "toxic": 0.1257, "spam": 0.0175}}}, {"id": 89, "author": "Ishita Banerjee", "thread": "Share your artifacts", "posted_at": "2026-10-20 16:00", "comment": "Our college fest registration form artifact is live, please test and break it before Friday \ud83d\ude4f", "classification": {"choice": "acceptable", "confidence": 0.8522, "probabilities": {"acceptable": 0.9488, "toxic": 0.0262, "spam": 0.025}}}, {"id": 90, "author": "Riya Thomas", "thread": "Share your artifacts", "posted_at": "2026-10-20 16:35", "comment": "Found a bug: entering an emoji in the name field crashes the confirmation page. \ud83d\ude05", "classification": {"choice": "acceptable", "confidence": 0.8831, "probabilities": {"acceptable": 0.9598, "toxic": 0.0255, "spam": 0.0147}}}, {"id": 91, "author": "Vikram Singh", "thread": "Share your artifacts", "posted_at": "2026-10-20 17:02", "comment": "Who made this garbage form? Typical mechanical branch people trying to code. Stick to your lathe machines \ud83d\ude02", "classification": {"choice": "toxic", "confidence": 0.3895, "probabilities": {"acceptable": 0.2682, "toxic": 0.7218, "spam": 0.01}}}, {"id": 92, "author": "Shruti Deshpande", "thread": "Doubts", "posted_at": "2026-10-21 10:10", "comment": "Does using AI-generated images in the artifact need attribution too?", "classification": {"choice": "acceptable", "confidence": 0.8527, "probabilities": {"acceptable": 0.9489, "toxic": 0.0279, "spam": 0.0232}}}, {"id": 93, "author": "Siddharth Rao", "thread": "General", "posted_at": "2026-10-21 11:30", "comment": "Will there be a session on how to evaluate AI-generated code for security issues? Seems important for the next assignment.", "classification": {"choice": "acceptable", "confidence": 0.8607, "probabilities": {"acceptable": 0.9518, "toxic": 0.0263, "spam": 0.0219}}}, {"id": 94, "author": "cs307_solutions", "thread": "General", "posted_at": "2026-10-21 12:00", "comment": "CS307 complete solved assignments + viva answers available!! 100% working code. DM on telegram @cs307_solutions_hub. Pay after delivery.", "classification": {"choice": "spam", "confidence": 0.9179, "probabilities": {"acceptable": 0.0203, "toxic": 0.0077, "spam": 0.972}}}, {"id": 95, "author": "Ritika Sen", "thread": "General", "posted_at": "2026-10-21 14:15", "comment": "Sir, please consider allowing pair submissions next time, 4-member groups are hard to coordinate.", "classification": {"choice": "acceptable", "confidence": 0.897, "probabilities": {"acceptable": 0.9647, "toxic": 0.0203, "spam": 0.015}}}, {"id": 96, "author": "Omkar Jadhav", "thread": "Submission & grading", "posted_at": "2026-10-21 23:58", "comment": "Finally submitted at 11:57 PM \ud83d\ude02 Never doing last-minute again (I say this every semester).", "classification": {"choice": "acceptable", "confidence": 0.8639, "probabilities": {"acceptable": 0.953, "toxic": 0.0279, "spam": 0.0191}}}, {"id": 97, "author": "Rahul Chauhan", "thread": "Doubts", "posted_at": "2026-10-22 10:05", "comment": "If you can't even set up an API key you shouldn't be in CSE. Stop spamming the forum with your stupid doubts, dumbo.", "classification": {"choice": "toxic", "confidence": 0.8891, "probabilities": {"acceptable": 0.0315, "toxic": 0.9618, "spam": 0.0067}}}, {"id": 98, "author": "Divya Hegde", "thread": "General", "posted_at": "2026-10-22 18:30", "comment": "Thanks to everyone who answered doubts here, this thread was more useful than the lectures honestly \ud83d\ude04", "classification": {"choice": "acceptable", "confidence": 0.811, "probabilities": {"acceptable": 0.9336, "toxic": 0.0398, "spam": 0.0266}}}, {"id": 99, "author": "Raju Startup", "thread": "General", "posted_at": "2026-10-23 12:00", "comment": "Hey guys check out my startup app, we are giving \u20b9100 Paytm cash for every signup using my referral code RAJU100 \ud83d\ude0a Link: refer-n-earn.app/RAJU100", "classification": {"choice": "spam", "confidence": 0.9029, "probabilities": {"acceptable": 0.0245, "toxic": 0.0088, "spam": 0.9667}}}, {"id": 100, "author": "Shreya Patil", "thread": "General", "posted_at": "2026-10-25 10:40", "comment": "Ma'am, any update on when the next assignment will be released? Want to plan around mid-sems.", "classification": {"choice": "acceptable", "confidence": 0.8435, "probabilities": {"acceptable": 0.9456, "toxic": 0.0307, "spam": 0.0237}}}];
+
+    let activeFilter = 'all';
+    let searchQuery = '';
+    let activeSort = 'id-asc';
+
+    const container = document.getElementById('commentsContainer');
+    const searchInput = document.getElementById('searchInput');
+    const sortSelect = document.getElementById('sortSelect');
+    const tabButtons = document.querySelectorAll('.tab-btn');
+    const toast = document.getElementById('toast');
+
+    function isBorderline(item) {
+      const c = item.classification;
+      if (c.confidence < 0.55) return true;
+      const probs = Object.values(c.probabilities || {}).sort((a, b) => b - a);
+      if (probs.length > 1 && (probs[0] - probs[1]) < 0.25) return true;
+      return false;
+    }
+
+    function copyMistakeTemplate(id, choice, text) {
+      const cleaned = (text || '').replace(/"/g, '').slice(0, 100);
+      const snippet = [
+        "- **Comment #" + id + "**:",
+        "  - Clef's label: `" + choice + "` | Correct label: `[ENTER_LABEL]`",
+        "  - Reason: [1-2 sentences explaining why]",
+        '  - Excerpt: "' + cleaned + '..."'
+      ].join('\n') + '\n';
+      navigator.clipboard.writeText(snippet).then(() => {
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 2500);
+      });
+    }
+
+    function render() {
+      let filtered = commentsData.filter(item => {
+        if (activeFilter === 'borderline') {
+          if (!isBorderline(item)) return false;
+        } else if (activeFilter !== 'all') {
+          if (item.classification.choice !== activeFilter) return false;
+        }
+
+        if (searchQuery.trim() !== '') {
+          const q = searchQuery.toLowerCase();
+          const matchText = (item.comment || '').toLowerCase().includes(q);
+          const matchAuthor = (item.author || '').toLowerCase().includes(q);
+          const matchThread = (item.thread || '').toLowerCase().includes(q);
+          const matchId = String(item.id).includes(q);
+          return matchText || matchAuthor || matchThread || matchId;
+        }
+
+        return true;
+      });
+
+      filtered.sort((a, b) => {
+        if (activeSort === 'id-asc') return a.id - b.id;
+        if (activeSort === 'id-desc') return b.id - a.id;
+        if (activeSort === 'conf-asc') return a.classification.confidence - b.classification.confidence;
+        if (activeSort === 'conf-desc') return b.classification.confidence - a.classification.confidence;
+        return 0;
+      });
+
+      if (filtered.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <h3>No comments match your filter</h3>
+            <p>Try selecting a different filter tab or clearing the search query.</p>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = filtered.map(item => {
+        const c = item.classification;
+        const choice = c.choice || 'unknown';
+        const confPercent = Math.round((c.confidence || 0) * 100);
+        const borderline = isBorderline(item);
+
+        const initials = (item.author || 'User')
+          .split(' ')
+          .map(p => p[0])
+          .slice(0, 2)
+          .join('');
+
+        const probs = c.probabilities || {};
+        const pAcc = Math.round((probs.acceptable || 0) * 100);
+        const pTox = Math.round((probs.toxic || 0) * 100);
+        const pSpam = Math.round((probs.spam || 0) * 100);
+
+        return `
+          <article class="comment-card" id="card-${item.id}">
+            <div class="card-top">
+              <div class="author-info">
+                <div class="avatar">${initials}</div>
+                <div>
+                  <div class="author-name">${escapeHtml(item.author)}</div>
+                  <div class="thread-tag">${escapeHtml(item.thread)}</div>
+                </div>
+              </div>
+              <div class="meta-details">
+                <span>${escapeHtml(item.posted_at)}</span>
+                <span class="id-badge">ID #${item.id}</span>
+              </div>
+            </div>
+
+            <div class="comment-text">${escapeHtml(item.comment)}</div>
+
+            <div class="card-bottom">
+              <div class="prediction-group">
+                <span class="decision-pill ${choice}">
+                  ${choice}
+                </span>
+                <span class="confidence-tag">
+                  Confidence: <strong>${confPercent}%</strong>
+                </span>
+                ${borderline ? '<span class="borderline-indicator">&#9873; Borderline</span>' : ''}
+                <div class="probs-bar" title="Acceptable: ${pAcc}% | Toxic: ${pTox}% | Spam: ${pSpam}%">
+                  <div class="bar-mini-wrapper">
+                    <div style="width: ${pAcc}%; background: var(--accent-acceptable);"></div>
+                    <div style="width: ${pTox}%; background: var(--accent-toxic);"></div>
+                    <div style="width: ${pSpam}%; background: var(--accent-spam);"></div>
+                  </div>
+                  <span>A:${pAcc}% T:${pTox}% S:${pSpam}%</span>
+                </div>
+              </div>
+
+              <div class="actions-group">
+                <button class="btn-mistake" onclick="copyMistakeTemplate(${item.id}, '${choice}', '${escapeAttr(item.comment)}')">
+                  📋 Copy for MISTAKES.md
+                </button>
+              </div>
+            </div>
+          </article>
+        `;
+      }).join('');
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function escapeAttr(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/'/g, "\\'")
+        .replace(/"/g, '&quot;')
+        .replace(/\n/g, ' ');
+    }
+
+    tabButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        tabButtons.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        activeFilter = btn.dataset.filter;
+        render();
+      });
+    });
+
+    searchInput.addEventListener('input', (e) => {
+      searchQuery = e.target.value;
+      render();
+    });
+
+    sortSelect.addEventListener('change', (e) => {
+      activeSort = e.target.value;
+      render();
+    });
+
+    render();
+  </script>
+</body>
+</html>
